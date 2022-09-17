@@ -2458,7 +2458,9 @@ add_our_data:
     sprintf(buf + strlen(buf), ",%s", snr_rssi);
 
   if (add_our_call)
-    sprintf(buf + strlen(buf), ",%s", Tcall.c_str());
+  {
+    sprintf(buf + strlen(buf), ",%s*", Tcall.c_str());
+  }
 
   for (i = insert_our_data_before; i < frame->n_digis; i++) {
     sprintf(buf + strlen(buf), ",%s", frame->digis[i].addr);
