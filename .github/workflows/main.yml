@@ -54,8 +54,8 @@ jobs:
         uses: marvinpinto/action-automatic-releases@latest
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          title: Release ${{ github.ref }}-${{ steps.date.outputs.date }}
-          automatic_release_tag: ${{ github.ref }}-${{ steps.date.outputs.date }}
+          title: Release ${{ github.ref_name }}-${{ steps.date.outputs.date }}
+          automatic_release_tag: ${{ github.ref_name }}-${{ steps.date.outputs.date }}
           draft: false
           prerelease: true
       - name: Rename artifacts
