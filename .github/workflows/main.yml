@@ -83,7 +83,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_name: ./.pio/build/ttgo-t-beam-v0.7/ttgo-t-beam-v0.7.bin
+          asset_name: ./.pio/build/ttgo-t-beam-v0.7/ttgo-t-beam-v0.7-${{ steps.date.outputs.date }}.bin
 
       - name: Upload ttgo-lora32-v2.1.bin
         id: upload-release-asset-ttgo-lora32-v2_1_bin
@@ -91,8 +91,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          asset_path: ./.pio/build/ttgo-lora32-v2.1/firmware.bin
-          asset_name: ttgo-lora32-v2.1-${{ steps.date.outputs.date }}.bin
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./.pio/build/ttgo-lora32-v2.1/ttgo-lora32-v2.1-${{ steps.date.outputs.date }}.bin
 
       - name: Upload ttgo-lora32-v2.bin
         id: upload-release-asset-ttgo-lora32-v2_bin
