@@ -57,15 +57,24 @@ jobs:
           title: ${{ github.ref }}-${{ steps.date.outputs.date }}
           draft: false
           prerelease: true
+      - name: Rename artifacts
+        run: |
+          mv ./.pio/build/ttgo-t-beam-v1.0/firmware.bin ./.pio/build/ttgo-t-beam-v1.0/ttgo-t-beam-v1.0-${{ steps.date.outputs.date }}.bin
+          mv ./.pio/build/ttgo-t-beam-v0.7/firmware.bin ./.pio/build/ttgo-t-beam-v0.7/ttgo-t-beam-v0.7-${{ steps.date.outputs.date }}.bin || true
+          mv ./.pio/build/ttgo-lora32-v2.1/firmware.bin ./.pio/build/ttgo-lora32-v2.1/ttgo-lora32-v2.1-${{ steps.date.outputs.date }}.bin || true
+          mv ./.pio/build/ttgo-lora32-v2/firmware.bin ./.pio/build/ttgo-lora32-v2/ttgo-lora32-v2-${{ steps.date.outputs.date }}.bin || true
+          mv ./.pio/build/ttgo-lora32-v1/firmware.bin ./.pio/build/ttgo-lora32-v1/ttgo-lora32-v1-${{ steps.date.outputs.date }}.bin || true
+          mv ./.pio/build/Heltec-WiFi-v1/firmware.bin ./.pio/build/Heltec-WiFi-v1/Heltec-WiFi-v1-${{ steps.date.outputs.date }}.bin || true
+          mv ./.pio/build/Heltec-WiFi-v2/firmware.bin ./.pio/build/Heltec-WiFi-v2/Heltec-WiFi-v2-${{ steps.date.outputs.date }}.bin || true
 
       - name: Upload ttgo-t-beam-v1.0.bin
         id: upload-release-asset-ttgo-t-beam-v1_0_bin
-        uses: svenstaro/upload-release-action@v2
+        uses: Fhwang0926/upload-release-asset@v1.1.17
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          file: ./.pio/build/ttgo-t-beam-v1.0/firmware.bin
-          asset_name: ttgo-t-beam-v1.0-${{ steps.date.outputs.date }}.bin
+          asset_name: ./.pio/build/ttgo-t-beam-v1.0/firmware.bin
 
       - name: Upload ttgo-t-beam-v0.7.bin
         id: upload-release-asset-ttgo-t-beam-v0_7_bin
