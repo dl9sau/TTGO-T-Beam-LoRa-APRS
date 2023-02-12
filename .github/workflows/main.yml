@@ -52,9 +52,8 @@ jobs:
       - name: Create Release
         id: create_release
         uses: marvinpinto/action-automatic-releases@latest
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
           title: ${{ github.ref }}-${{ steps.date.outputs.date }}
           draft: false
           prerelease: true
