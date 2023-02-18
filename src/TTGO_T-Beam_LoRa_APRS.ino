@@ -521,7 +521,10 @@ out_relay_path:
 #if defined(ENABLE_BLUETOOTH) && defined(KISS_PROTOCOL)
       (enable_bluetooth && SerialBT.hasClient()) ||
 #endif
-      ((time_last_own_text_message_via_kiss_received + 24*60*60*1000L) > millis())
+      (
+        (time_last_own_text_message_via_kiss_received > 0) && 
+        ((time_last_own_text_message_via_kiss_received + 24*60*60*1000L) > millis())
+      )
      )
     outString += "=";
   else
@@ -1018,7 +1021,7 @@ String getSpeedCourseAlti() {
     int alt_int = max(-99999, min(999999, (int ) (units_dist == UNITS_DIST_FT ? gps.altitude.feet() : gps.altitude.meters())));
     speed_val = String(gps_speed);
     course_val = String(gps.course.deg());
-    alt_unit = String(alt_int);
+    alt_val = String(alt_int);
   }
 
   sca = speed_val + speed_unit + " " + course_val + course_unit + " " + alt_val + alt_unit;
@@ -3728,7 +3731,8 @@ void handle_usb_serial_input(void) {
         }
 
         if (arg == "" &&
-            (cmd == "?" || cmd == "beacon" || cmd == "converse" || cmd == "display" || cmd == "reboot") ) {
+            (cmd == "?" || cmd == "beacon" || cmd == "converse" || cmd == "display" || cmd == "reboot" || 
+             cmd == "shutdown") ) {
           if (cmd == "beacon") {
             Serial.println("*** beacon: sending");
             manBeacon = true;
