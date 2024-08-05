@@ -5,7 +5,7 @@
 
 #ifndef SYSLOG_LOG
 #define SYSLOG_LOG
-#ifdef ENABLE_SYSLOG
+#if defined(ENABLE_SYSLOG) && defined(ENABLE_WIFI)
 extern Syslog syslog;
     #define syslog_log(a, b) syslog.log(a, b)
 #else

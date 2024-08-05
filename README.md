@@ -8,15 +8,18 @@ After connection with APRX based DIGI it can be used as KISS-TNC
 
 ## Contributors
 * Initial work: OE1ACM, OE3CJB
-* Redesigned: SQ9MDD
+* Redesigned: SQ9MDD, DL9SAU, DL3EL
 * KISS TNC Over Serial or Bluetooth: SQ5RWU
 * Lora32 board support: DJ1AN
+* This firmware also supports T-Beam V1.2 and and Heltec Wireless tracker: by DL9SAU
 * Self-telemetry improvement: KB1GIM
 
 ## Supported boards
 * TTGO T-beam v.0.7
 * TTGO T-beam v.1.0 
+* TTGO T-beam v.1.02
 * Lora32 board
+* Heltec Wireless Tracker
 
 ## User key functions:
 ### short press (OLED Enabled):
@@ -47,7 +50,9 @@ After connection with APRX based DIGI it can be used as KISS-TNC
 * ((TEL TX)) - information about sending telemetry
 
 ## How to binary first flash readme... (thanx SP6VWX)
-* Download the appropriate binary file for your board from: https://github.com/SQ9MDD/TTGO-T-Beam-LoRa-APRS/releases
+* Download the appropriate binary file for your board from github does not work.
+  Self-compile is recommended. But you could download a latest stable / recommended release from
+     http://db0fhn.hamnet.network/~dl9sau/lora-aprs-sq9mdd-dl9sau-dl3el-latest.zip
 * Download current version of the esphome-flasher tool: https://github.com/esphome/esphome-flasher/releases
 * Connect your board to your USB port and open ESPHome Flasher.
 * If your board is not showing under Serial Port then you likely need to install the drivers for the CP210X serial chip. In Windows you can check by searching “Device Manager” and ensuring the device is shown under “Ports”.

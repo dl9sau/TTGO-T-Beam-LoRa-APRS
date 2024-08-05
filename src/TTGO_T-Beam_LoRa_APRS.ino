@@ -212,6 +212,8 @@ String aprsis_password = "-1";
 uint8_t aprsis_data_allow_inet_to_rf = 0;  // 0: disable (default). 1: gate to main qrg. 2: gate to secondary qrg. 3: gate to both frequencies
 extern void do_send_status_message_about_reboot_to_aprsis();
 extern void do_send_status_message_about_shutdown_to_aprsis();
+#else
+boolean aprsis_enabled = false;
 #endif
 
 // Variables for APRS packaging
@@ -4578,57 +4580,52 @@ void setup()
   // -> We already finished variable stuff above, or do it right before end of setup().
   //    Now we are prepared to start the webserver process (if needed). First, we may start bluetooth.
 
-#if defined(KISS_PROTOCOL)
-#if defined(ENABLE_BLUETOOTH)
+#if !defined(KISS_PROTOCOL) || !defined(ENABLE_BLUETOOTH)
+  enable_bluetooth = false;
+#else
   // TTGO: webserver cunsumes abt 80mA. User may not start the webserver
   // if bt-client is connected. We'll also wait here for clients.
   // If enable_webserver on LORA32_21 is set to 2 (or aprsis connection is
   // configured in webserver mode 1), user likes the webserver always
   // to be started -> do not start bluetooth.
 
-#if defined(ENABLE_WIFI)
-#if defined(LORA32_21)
-  if (enable_bluetooth && enable_webserver < 2 && !aprsis_enabled) {
-#else
+#if defined(ENABLE_WIFI) && defined(LORA32_21)
+  if (enable_bluetooth && (enable_webserver > 1 || aprsis_enabled))
+    enable_bluetooth = false;
+#endif
+
   if (enable_bluetooth) {
-#endif /* LORA32_21 */
-#else
-  if (enable_bluetooth) {
-#endif /* ENABLE_WIFI */
     #if defined(BLUETOOTH_PIN)
       SerialBT.setPin(BLUETOOTH_PIN);
     #endif
     SerialBT.begin(String("TTGO LORA APRS ") + Tcall);
     writedisplaytext("LoRa-APRS","","Init:","BT OK!","","");
 
-  #if defined(ENABLE_WIFI)
-    if (enable_webserver == 1 && !aprsis_enabled) {
-      writedisplaytext("LoRa-APRS","","Init:","Waiting for BT-client","","");
-      // wait 60s until BT client connects
-      uint32_t t_end = millis() + 60000;
-      while (millis() < t_end) {
-        if (SerialBT.hasClient())
-          break;
-        delay(100);
+    #if defined(ENABLE_WIFI)
+      if (enable_webserver == 1 && !aprsis_enabled) {
+        writedisplaytext("LoRa-APRS","","Init:","Waiting for BT-client","","");
+        // wait 60s until BT client connects
+        uint32_t t_end = millis() + 60000;
+        while (millis() < t_end) {
+          if (SerialBT.hasClient())
+            break;
+          delay(100);
+        }
+        if (!SerialBT.hasClient()) {
+          #if defined(LORA32_21)
+            writedisplaytext("LoRa-APRS","","Init:","Waiting for BT-client","Disabling BT!","");
+            SerialBT.end();
+            serial_bt_client_is_connected = false;
+            enable_bluetooth = false;
+          #endif
+        } else {
+          writedisplaytext("LoRa-APRS","","Init:","Waiting for BT-clients","BT-client connected","Will NOT start WiFi!");
+        }
+        delay(1500);
       }
-      if (!SerialBT.hasClient()) {
-        #if defined(LORA32_21)
-          writedisplaytext("LoRa-APRS","","Init:","Waiting for BT-client","Disabling BT!","");
-          SerialBT.end();
-          serial_bt_client_is_connected = false;
-          enable_bluetooth = false;
-        #endif
-      } else {
-        writedisplaytext("LoRa-APRS","","Init:","Waiting for BT-clients","BT-client connected","Will NOT start WiFi!");
-      }
-      delay(1500);
-    }
-  #endif /* ENABLE_WIFI */
+    #endif /* ENABLE_WIFI */
   }
-
-#endif // BLUETOOTH not enabled
-  enable_bluetooth = 0;
-#endif // KISS_PROTOCOL not enabled
+#endif // KISS_PROTOCOL and ENABLE_BLUETOOTH
 
 
 #ifdef ENABLE_WIFI
@@ -6580,7 +6577,7 @@ send_beacon:
     writedisplaytext((manBeacon == 1 ? "((WEB TX))" : "((CLI TX))"),"SSID: " + oled_wifi_SSID_curr,"IP: " + oled_wifi_IP_curr, OledLine3, OledLine4, OledLine5);
 #else
     fillDisplayLines3to5(0);
-    writedisplaytext((manBeacon == 1) ? "((WEB TX))" : "((CLI TX))"),"","",OledLine3, OledLine4, OledLine5);
+    writedisplaytext((manBeacon == 1 ? "((WEB TX))" : "((CLI TX))"),"","",OledLine3, OledLine4, OledLine5);
 #endif
     sendpacket(SP_POS_GPS);
     manBeacon=0;
@@ -6666,7 +6663,9 @@ send_beacon:
     do_shutdown(false);
   #else
     writedisplaytext("LoRa-APRS","","Button:","Rebooting","","Release Button now!");
-    do_send_status_message_about_reboot_to_aprsis();
+    #ifdef ENABLE_WIFI
+      do_send_status_message_about_reboot_to_aprsis();
+    #endif
     delay(3000);
     ESP.restart();
   #endif
