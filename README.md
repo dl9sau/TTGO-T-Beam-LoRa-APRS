@@ -62,13 +62,25 @@ After connection with APRX based DIGI it can be used as KISS-TNC
 * Once complete, “Done! Flashing is complete!” will be shown.
 * any subsequent updates can be done via WWW
 
-## Installing from source (only for advanced users)
+## How to flash with esptool the first time
+If you won't compile with platformio and like to use esptool(.py),
+a user succeeded this way with his new heltec wireless tracker:
+* python -m esptool --chip esp32s3 --port /dev/ttyACM0 --baud 460800 --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 80m --flash_size 8MB 0x0000 bootloader.bin 0x8000 partitions.bin 0xe000 boot_app0.bin 0x10000 heltec-wireless-tracker-firmware.bin
+  Got this by adding -v to pio run: ~/.platformio/penv/bin/pio run -v -e heltec-wireless-tracker -t upload --upload-port /dev/null
+   I provided him the appropriete bootloader.bin and partitions.bin, .platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin
+* On other platforms, speed, flash-size and hex-addresses may differ.
+
+## Installing from source (advanced users will go this way, but it's a good idea for everyone
+)
 * Clone Git repo to any folder of your PC
 * Download and install "Visual Studio Code"
 * Open "Visual Studio Code" and add "PlatformIO" plugin
 * Open "PlatformIO" and click on "Import Arduino Project"
 * In the top part of the window choose youy board then browse to cloned repo and click "import"
 * In the left column click on the ANT-shaped icon, choose your board and click on "Upload". COM port should be detected automatically Wait for procedure to finish and keep reading
+* If you prefer the platormio-cli (-> compile in your shell; no VCS is needed!),
+  please read through this easy documentation:
+    https://docs.platformio.org/en/latest/core/index.html
 
 ## Configuring parameters
 Wait for the board to reboot, connect to "N0CALL AP" WiFi network, password is: xxxxxxxxxx (10 times "x") and point your browser to "http://192.168.4.1" (http, not http*s*). Hover your mouse to textboxes to get useful hints.
