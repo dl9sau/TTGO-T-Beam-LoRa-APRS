@@ -17,7 +17,7 @@ After connection with APRX based DIGI it can be used as KISS-TNC
 ## Supported boards
 * TTGO T-beam v.0.7
 * TTGO T-beam v.1.0 
-* TTGO T-beam v.1.02
+* TTGO T-beam v.1.2
 * Lora32 board
 * Heltec Wireless Tracker
 
