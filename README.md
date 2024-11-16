@@ -70,17 +70,18 @@ a user succeeded this way with his new heltec wireless tracker:
    I provided him the appropriete bootloader.bin and partitions.bin, .platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin
 * On other platforms, speed, flash-size and hex-addresses may differ.
 
-## Installing from source (advanced users will go this way, but it's a good idea for everyone
-)
+## Installing from source
+* good idea, not only from advanced users
 * Clone Git repo to any folder of your PC
+* If you prefer the platormio-cli (-> compile in your shell; no VCS is needed!),
+  please read through this easy documentation:
+    https://docs.platformio.org/en/latest/core/index.html
+* Else:
 * Download and install "Visual Studio Code"
 * Open "Visual Studio Code" and add "PlatformIO" plugin
 * Open "PlatformIO" and click on "Import Arduino Project"
 * In the top part of the window choose youy board then browse to cloned repo and click "import"
 * In the left column click on the ANT-shaped icon, choose your board and click on "Upload". COM port should be detected automatically Wait for procedure to finish and keep reading
-* If you prefer the platormio-cli (-> compile in your shell; no VCS is needed!),
-  please read through this easy documentation:
-    https://docs.platformio.org/en/latest/core/index.html
 
 ## Configuring parameters
 Wait for the board to reboot, connect to "N0CALL AP" WiFi network, password is: xxxxxxxxxx (10 times "x") and point your browser to "http://192.168.4.1" (http, not http*s*). Hover your mouse to textboxes to get useful hints.
