@@ -13,9 +13,7 @@
   extern BG_RF95 rf95;
 #elif HAS_SX126X
   #include <RadioLib.h>
-  #if defined(HELTEC_WIRELESS_TRACKER)
-    extern SX1262 radio;
-  #endif
+  extern SX1262 radio;
 #endif
 
 #ifdef KISS_PROTOCOL
@@ -31,6 +29,7 @@ typedef struct {
   String *packet;
   int RSSI;
   int SNR;
+  char QRG;
 } tReceivedPacketData;
 
 extern QueueHandle_t webListReceivedQueue;

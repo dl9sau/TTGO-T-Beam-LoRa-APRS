@@ -10,10 +10,7 @@
 #include <SPI.h>
 #ifdef HAS_SX126X
     #include <RadioLib.h>
-#else
-  #if !defined(HAS_SX127X)
-    #define HAS_SX127X
-  #endif
+#elif HAS_SX127X
   #include <BG_RF95.h>         // library from OE1ACM
 #endif
 #include <math.h>
@@ -93,7 +90,13 @@ uint32_t RemoteDebugNr = 0L;
   #define SPI_miso 19
   #define SPI_mosi 27
   #define SPI_ss 18
-  #define SPI_irq 26
+  #if defined(T_BEAM_V1_2) && defined(HAS_SX126X)
+    #define SPI_irq 33
+    #define SPI_rst 23
+    #define SPI_busy 32
+  #else
+    #define SPI_irq 26
+  #endif
 #endif
 
 // IO config
@@ -384,7 +387,7 @@ ulong button_time_delay = 0;
 
 // structure for LastHeard Array. Used for displaying course and distance to them.
 #define MAX_LH 5                  // max lastheard
-struct LastHeard{
+struct LastHeard {
   String callsign;
   uint32_t time_received = 0L;
   double lat;
@@ -393,7 +396,12 @@ struct LastHeard{
 };
 struct LastHeard LH[MAX_LH];
 
-String RX_RAW_PACKET_LIST[3];
+struct struct_rx_raw_packet {
+  String packet;
+  char QRG;
+};
+struct struct_rx_raw_packet RX_RAW_PACKET_LIST[3];
+
 String LastRXMessage = "";
 String LastRXMessageSender = "";
 String LastRXMessageTimeStr = "";
@@ -581,6 +589,20 @@ uint32_t time_last_status_packet_sent = 0L;
 uint16_t lora_automaic_cr_adoption_rf_transmissions_heard_in_timeslot = 0;
 uint16_t lora_packets_received_in_timeslot_on_main_freq = 0;
 uint16_t lora_packets_received_in_timeslot_on_secondary_freq = 0;
+uint32_t stats_rx_freq_main = 0;
+uint32_t stats_rx_freq_secondary = 0;
+uint32_t stats_tx_freq_main = 0;
+uint32_t stats_tx_freq_secondary = 0;
+uint32_t stats_tx_beacon = 0;
+uint32_t stats_tx_status = 0;
+uint32_t stats_tx_telemetry = 0;
+uint32_t stats_digipeated_rf2rf = 0;
+uint32_t stats_from_aprsis = 0;
+uint32_t stats_to_aprsis = 0;
+uint32_t stats_from_serial = 0;
+uint32_t stats_to_serial = 0;
+uint32_t stats_from_kiss = 0;
+uint32_t stats_to_kiss = 0;
 boolean sendpacket_was_called_twice = false;
 // bits for sendpacket()
 #define SP_POS_FIXED 1
@@ -610,9 +632,7 @@ static const adc_unit_t unit = ADC_UNIT_1;
   BG_RF95 rf95(SPI_ss, SPI_irq);
   #define LORA_MAX_MESSAGE_LEN BG_RF95_MAX_MESSAGE_LEN
 #elif HAS_SX126X
-  #if defined(HELTEC_WIRELESS_TRACKER)
-    SX1262 radio = new Module(SPI_ss, SPI_irq, SPI_rst, SPI_busy);
-  #endif
+  SX1262 radio = new Module(SPI_ss, SPI_irq, SPI_rst, SPI_busy);
   #define LORA_MAX_MESSAGE_LEN 255-4 // 255 byte chip buffer - header
 #else
   #define LORA_MAX_MESSAGE_LEN 255-4
@@ -1090,8 +1110,10 @@ out_relay_path:
   #ifdef KISS_PROTOCOL
     sendToTNC(outString);
   #endif
-  if (usb_serial_data_type & 2)
+  if (usb_serial_data_type & 2) {
     Serial.println(outString);
+    stats_to_serial++;
+  }
 }
 
 #ifdef BUZZER
@@ -1222,11 +1244,14 @@ void sendpacket(uint8_t sp_flags){
   if (lora_tx_enabled && tx_own_beacon_from_this_device_or_fromKiss__to_frequencies) {
     if (tx_own_beacon_from_this_device_or_fromKiss__to_frequencies % 2) {
       loraSend(txPower, lora_freq, lora_speed, (sp_flags & SP_ENFORCE_COURSE) ? LORA_FLAGS_NODELAY : 0, outString);  //send the packet, data is in TXbuff from lora_TXStart to lora_TXEnd
+      stats_tx_freq_main++;
     }
     if (((tx_own_beacon_from_this_device_or_fromKiss__to_frequencies > 1 && lora_digipeating_mode > 1) || tx_own_beacon_from_this_device_or_fromKiss__to_frequencies == 5) && lora_freq_cross_digi > 1.0 && lora_freq_cross_digi != lora_freq) {
       loraSend(txPower_cross_digi, lora_freq_cross_digi, lora_speed_cross_digi, (sp_flags & SP_ENFORCE_COURSE) ? LORA_FLAGS_NODELAY : 0, outString);  //send the packet, data is in TXbuff from lora_TXStart to lora_TXEnd
+      stats_tx_freq_secondary++;
     }
   }
+  stats_tx_beacon++;
   #if defined(ENABLE_WIFI)
     if (tx_own_beacon_from_this_device_or_fromKiss__to_aprsis)
       send_own_beacon_to_aprsis_cached_or_now(outString);
@@ -1260,21 +1285,26 @@ void sendStatusPacket(const String &message) {
   outString = outString + "," + relay_path;
 out_relay_path:
   outString = outString + String(":>") + message;
+  stats_tx_beacon++;
   enableOled_now(); // enable OLED
-  writedisplaytext("((TXstat))", "", outString, "", "", "");
+  writedisplaytext("((TXstat))", String("#") + String(stats_tx_status), outString, "", "", "");
 
   #ifdef KISS_PROTOCOL
     sendToTNC(outString);
   #endif
-  if (usb_serial_data_type & 2)
+  if (usb_serial_data_type & 2) {
     Serial.println(outString);
+    stats_to_serial++;
+  }
 
   if (lora_tx_enabled && tx_own_beacon_from_this_device_or_fromKiss__to_frequencies) {
     if (tx_own_beacon_from_this_device_or_fromKiss__to_frequencies % 2) {
       loraSend(txPower, lora_freq, lora_speed, 0, outString);  //send the packet, data is in TXbuff from lora_TXStart to lora_TXEnd
+      stats_tx_freq_main++;
     }
     if (((tx_own_beacon_from_this_device_or_fromKiss__to_frequencies > 1 && lora_digipeating_mode > 1) || tx_own_beacon_from_this_device_or_fromKiss__to_frequencies == 5) && lora_freq_cross_digi > 1.0 && lora_freq_cross_digi != lora_freq) {
       loraSend(txPower_cross_digi, lora_freq_cross_digi, lora_speed_cross_digi, 0, outString);  //send the packet, data is in TXbuff from lora_TXStart to lora_TXEnd
+      stats_tx_freq_secondary++;
     }
   }
   time_last_status_packet_sent = millis();
@@ -2255,6 +2285,7 @@ void sendToTNC(const String& TNC2FormatedFrame) {
   if (tncToSendQueue){
     auto *buffer = new String();
     buffer->concat(TNC2FormatedFrame);
+    stats_to_kiss++;
     if (xQueueSend(tncReceivedQueue, &buffer, (1000 / portTICK_PERIOD_MS)) != pdPASS){
       // remove buffer on error
       delete buffer;
@@ -2267,7 +2298,7 @@ void sendToTNC(const String& TNC2FormatedFrame) {
  *
  * @param TNC2FormatedFrame
  */
-void sendToWebList(const String& TNC2FormatedFrame, const int RSSI, const int SNR) {
+void sendToWebList(const String& TNC2FormatedFrame, const int RSSI, const int SNR, char QRG) {
   if (webListReceivedQueue){
     auto *receivedPacketData = new tReceivedPacketData();
     receivedPacketData->packet = new String();
@@ -2276,6 +2307,7 @@ void sendToWebList(const String& TNC2FormatedFrame, const int RSSI, const int SN
     receivedPacketData->packet->trim();
     receivedPacketData->RSSI = RSSI;
     receivedPacketData->SNR = SNR;
+    receivedPacketData->QRG = QRG;
     getLocalTimeTheBetterWay(&receivedPacketData->rxTime);
 
     if (xQueueSend(webListReceivedQueue, &receivedPacketData, (1000 / portTICK_PERIOD_MS)) != pdPASS){
@@ -2335,8 +2367,10 @@ void send_telemetry_to_TNC_usb_serial_and_aprsis(const String &telemetryPacket)
   #if defined(KISS_PROTOCOL)
     sendToTNC(telemetryPacket);
   #endif
-  if (usb_serial_data_type & 2)
+  if (usb_serial_data_type & 2) {
     Serial.println(telemetryPacket);
+    stats_to_serial++;
+  }
   #if defined(ENABLE_WIFI)
     send_to_aprsis(telemetryPacket);
     // another hack: send_to_aprsis has no queue. Webserver-code needs enough time to send. Are 500ms enough?
@@ -2492,12 +2526,15 @@ void sendTelemetryFrame() {
       if (tel_allow_tx_on_rf & 2) {
         if (lora_freq_cross_digi != lora_freq && lora_speed_cross_digi >= 1200) {
           loraSend(txPower_cross_digi, lora_freq_cross_digi, lora_speed_cross_digi, 0, telemetryPacket);
+          stats_tx_freq_secondary++;
         }
       }
       if ((tel_allow_tx_on_rf & 1) && really_allow_telemetry_on_main_freq) {
         loraSend(txPower, lora_freq, (lora_speed < 300) ? 300 : lora_speed, 0, telemetryPacket);
+        stats_tx_freq_main++;
       }
     }
+    stats_tx_telemetry++;
   }
 
   // sequence number for measurement packet
@@ -2641,8 +2678,9 @@ void sendTelemetryFrame() {
   #endif
 
   // Show when telemetry is being sent
+  stats_tx_telemetry++;
   enableOled_now(); // enable OLED
-  writedisplaytext("((TEL TX))","",telemetryData,"","","");
+  writedisplaytext("((TEL TX))",String("#") + stats_tx_telemetry,telemetryData,"","","");
 
   send_telemetry_to_TNC_usb_serial_and_aprsis(telemetryBase + telemetryData);
 
@@ -2660,10 +2698,12 @@ void sendTelemetryFrame() {
     if (tel_allow_tx_on_rf & 2) {
       if (lora_freq_cross_digi != lora_freq && lora_speed_cross_digi >= 1200) {
         loraSend(txPower_cross_digi, lora_freq_cross_digi, lora_speed_cross_digi, 0, telemetryPacket);
+        stats_tx_freq_secondary++;
       }
     }
     if ((tel_allow_tx_on_rf & 1) && really_allow_telemetry_on_main_freq) {
       loraSend(txPower, lora_freq, (lora_speed < 300) ? 300 : lora_speed, 0, telemetryPacket);
+      stats_tx_freq_main++;
     }
   }
 
@@ -2682,7 +2722,8 @@ void init_wifi_STA_and_AP_settings() {
     wifi_ModeSTA_SSID = "";
     wifi_ModeSTA_PASS = "";
     apcnt = 0;
-    if (!preferences.getString(PREF_WIFI_PASSWORD, "").isEmpty() & !preferences.getString(PREF_WIFI_SSID, "").isEmpty()) {
+    if (/* !preferences.getString(PREF_WIFI_PASSWORD, "").isEmpty( && ) */ // no, connection to open wifi AP is allowed */
+        !preferences.getString(PREF_WIFI_SSID, "").isEmpty()) {
       // save old wifi credentials on pos 1, assuming that thhis is the best chance to reconnect
       wifi_ModeSTA_PASS = preferences.getString(PREF_WIFI_PASSWORD, "");
       wifi_ModeSTA_SSID = preferences.getString(PREF_WIFI_SSID, "");
@@ -2690,13 +2731,13 @@ void init_wifi_STA_and_AP_settings() {
       APs[apcnt].ssid[sizeof(APs[apcnt].ssid)-1] = 0;
       strncpy(APs[apcnt].pw, wifi_ModeSTA_PASS.c_str(), sizeof(APs[apcnt].pw)-1);
       APs[apcnt].pw[sizeof(APs[apcnt].pw)-1] = 0;
-      Serial.printf("Preferences AP %s found with PW %s and stored at pos %d\r\n", APs[apcnt].ssid, APs[apcnt].pw, apcnt);
+      Serial.printf("Preferences AP %s found with PW '%s' and stored at pos %d\r\n", APs[apcnt].ssid, APs[apcnt].pw, apcnt);
       apcnt = 1;
     }
 
     if (!preferences.getString(PREF_AP_PASSWORD, "").isEmpty()) {
       wifi_ModeAP_PASS = preferences.getString(PREF_AP_PASSWORD, "");
-      Serial.printf("Preferences Self-AP PW found %s and stored\r\n", wifi_ModeAP_PASS.c_str());
+      Serial.printf("Preferences Self-AP PW found '%s' and stored\r\n", wifi_ModeAP_PASS.c_str());
     }
 }
 #endif // ENABLE_WIFI
@@ -2842,7 +2883,7 @@ boolean readFile(fs::FS &fs, const char *filename) {
         wifi_ssid_old = String(p);
       if ((p = JSONBuffer["password1"]))
         wifi_password_old = String(p);
-      if (!wifi_ssid_old.length() || wifi_password_old.length() < 8 || wifi_ssid_old == "EnterSSIDofYourAccesspoint") {
+      if (wifi_ssid_old.length() && (wifi_password_old.length() < 8 || wifi_password_old.length() > 63 || wifi_ssid_old == "EnterSSIDofYourAccesspoint")) {
         wifi_ssid_old = "";
         wifi_password_old = "";
       } else {
@@ -2851,10 +2892,10 @@ boolean readFile(fs::FS &fs, const char *filename) {
           APs[apcnt].ssid[sizeof(APs[apcnt].ssid)-1] = 0;
           strncpy(APs[apcnt].pw, wifi_password_old.c_str(), sizeof(APs[apcnt].pw)-1);
           APs[apcnt].pw[sizeof(APs[apcnt].pw)-1] = 0;
-          Serial.printf("readFile: wifi.cfg, old structure AP %s found with PW %s (%d)\r\n", APs[apcnt].ssid, APs[apcnt].pw,apcnt);
+          Serial.printf("readFile: wifi.cfg, old structure AP %s found with PW '%s' (%d)\r\n", APs[apcnt].ssid, APs[apcnt].pw,apcnt);
           apcnt++;
         } else {
-          Serial.printf("readFile: wifi.cfg, Preferences AP %s found with PW %s in wifi.cfg and not stored again\r\n", wifi_ModeSTA_SSID.c_str(), wifi_ModeSTA_PASS.c_str());
+          Serial.printf("readFile: wifi.cfg, Preferences AP %s found with PW '%s' in wifi.cfg and not stored again\r\n", wifi_ModeSTA_SSID.c_str(), wifi_ModeSTA_PASS.c_str());
         }
       }
     }
@@ -2863,17 +2904,17 @@ boolean readFile(fs::FS &fs, const char *filename) {
         wifi_ssid_old = String(p);
       if ((p = JSONBuffer["password2"]))
         wifi_password_old = String(p);
-      if (!wifi_ssid_old.length() || wifi_password_old.length() < 8 || wifi_ssid_old == "EnterSSIDofYourAccesspoint") {
+      if (wifi_password_old.length()  && (wifi_password_old.length() < 8 || wifi_password_old.length() > 63 || wifi_ssid_old == "EnterSSIDofYourAccesspoint")) {
         wifi_ssid_old = "";
         wifi_password_old = "";
       } else {
         if (apcnt < MAX_AP_CNT && strcmp(wifi_ssid_old.c_str(), wifi_ModeSTA_SSID.c_str()) && strcmp(wifi_password_old.c_str(), wifi_ModeSTA_PASS.c_str())) {
           strncpy(APs[apcnt].ssid, wifi_ssid_old.c_str(), sizeof(APs[apcnt].ssid)-1);
           strncpy(APs[apcnt].pw, wifi_password_old.c_str(), sizeof(APs[apcnt].pw)-1);
-          Serial.printf("readFile: wifi.cfg, old structure AP %s found with PW %s (%d)\r\n", APs[apcnt].ssid, APs[apcnt].pw,apcnt);
+          Serial.printf("readFile: wifi.cfg, old structure AP %s found with PW '%s' (%d)\r\n", APs[apcnt].ssid, APs[apcnt].pw,apcnt);
           apcnt++;
         } else {
-          Serial.printf("readFile: wifi.cfg, Preferences AP %s found with PW %s in wifi.cfg and not stored again\r\n", wifi_ModeSTA_SSID.c_str(), wifi_ModeSTA_PASS.c_str());
+          Serial.printf("readFile: wifi.cfg, Preferences AP %s found with PW '%s' in wifi.cfg and not stored again\r\n", wifi_ModeSTA_SSID.c_str(), wifi_ModeSTA_PASS.c_str());
         }
       }
     }
@@ -2884,7 +2925,7 @@ boolean readFile(fs::FS &fs, const char *filename) {
         String ap_password = String(p);
         if (ap_password.length() > 7) {
           wifi_ModeAP_PASS = String(ap_password);
-          Serial.printf("readFile: wifi.cfg, valid Self-AP PW to be used %s\r\n", wifi_ModeAP_PASS.c_str());
+          Serial.printf("readFile: wifi.cfg, valid Self-AP PW to be used '%s'\r\n", wifi_ModeAP_PASS.c_str());
         }
     }
 
@@ -2897,9 +2938,9 @@ boolean readFile(fs::FS &fs, const char *filename) {
           // uncomment if you need to see the content of the data on SPIFFS
           // Serial.printf("readFile: content JSON: [%d] [%s %s]\r\n", apcnt, APs[apcnt].ssid, APs[apcnt].pw);
 
-          if (!sizeof(APs[apcnt].ssid) || sizeof(APs[apcnt].pw) < 8 || !strcmp(APs[apcnt].ssid, "EnterSSIDofYourAccesspoint") || !strcmp(APs[apcnt].ssid, "EnterSSIDofYour2ndAccesspoint")) {
+          if (!sizeof(APs[apcnt].ssid) || (sizeof(APs[apcnt].pw > 0 &&  (sizeof(APs[apcnt].pw) < 8 || sizeof(APs[apcnt].pw) > 63))) || !strcmp(APs[apcnt].ssid, "EnterSSIDofYourAccesspoint") || !strcmp(APs[apcnt].ssid, "EnterSSIDofYour2ndAccesspoint")) {
             delay(3000); // something is wrong, make sure, that msg is displayed
-            Serial.printf("readFile: SSID: %s missing or PW: %s < 8 Byte, Filesize: %d\r\n", APs[apcnt].ssid,APs[apcnt].pw,file.size());
+            Serial.printf("readFile: SSID: %s missing or PW: '%s' < 8 Byte || > 63 Byte, Filesize: %d\r\n", APs[apcnt].ssid, APs[apcnt].pw, file.size());
           } else {
             if (!apcnt) {
               // take first configured AP as active, if nothing has been found in flash
@@ -2916,14 +2957,14 @@ boolean readFile(fs::FS &fs, const char *filename) {
                 wifi_ModeSTA_PASS = String(APs[0].pw);
               }
             }
-            Serial.printf("readFile: wifi.cfg, valid AP %s found with PW %s (%d)\r\n", APs[apcnt].ssid, APs[apcnt].pw,apcnt);
+            Serial.printf("readFile: wifi.cfg, valid AP %s found with PW '%s' (%d)\r\n", APs[apcnt].ssid, APs[apcnt].pw, apcnt);
             apcnt++;
           }
         } else {
             if (wifi_ModeSTA_SSID == "")
               Serial.printf("readFile: wifi.cfg, No AP configured\r\n");
             else
-              Serial.printf("readFile: wifi.cfg, Preferences AP %s found with PW %s in wifi.cfg and not stored again\r\n", wifi_ModeSTA_SSID.c_str(), wifi_ModeSTA_PASS.c_str());
+              Serial.printf("readFile: wifi.cfg, Preferences AP %s found with PW '%s' in wifi.cfg and not stored again\r\n", wifi_ModeSTA_SSID.c_str(), wifi_ModeSTA_PASS.c_str());
         }
         if (apcnt == MAX_AP_CNT) {
           Serial.printf("readFile: wifi.cfg, maximum Number of possible APs (%d) reached.\r\n", MAX_AP_CNT);
@@ -4394,8 +4435,7 @@ void setup()
         // reseted? try to use /preferences.cfg
         readFile(SPIFFS, "/preferences.cfg");
         #ifdef ENABLE_WIFI
-          if (preferences.getString(PREF_WIFI_PASSWORD, "").isEmpty() ||
-              preferences.getString(PREF_WIFI_SSID, "").isEmpty()) {
+          if (preferences.getString(PREF_WIFI_SSID, "").isEmpty()) {
             preferences.putString(PREF_WIFI_SSID, wifi_ModeSTA_SSID);
             preferences.putString(PREF_WIFI_PASSWORD, wifi_ModeSTA_PASS);
             preferences.putString(PREF_AP_PASSWORD, wifi_ModeAP_PASS);
@@ -4763,7 +4803,7 @@ int is_call_blacklisted(const char *frame_start) {
     *p++ = frame_start[i];
   }
   if (!ssid_present) {
-    // for being able to filter out DL1AAA but not DL1AAA-1. -> DL1AAA is DL1AAA-0 by AX.25 definition. Blacklist lists DL1AAA-0. DL1AAA means: filter all variants.:w
+    // for being able to filter out DL1AAA but not DL1AAA-1. -> DL1AAA is DL1AAA-0 by AX.25 definition. Blacklist lists DL1AAA-0. DL1AAA means: filter all variants.
     *p++ = '-'; *p++ = '0';
   }
   *p++ = ',';
@@ -5817,6 +5857,7 @@ void handle_usb_serial_input(void) {
         }
         if (p == r) {
           Serial.println("*** sending: '" + inputBuf + "'");
+          stats_from_serial++;
           #ifdef KISS_PROTOCOL
             sendToTNC(inputBuf);
             esp_task_wdt_reset();
@@ -5831,10 +5872,12 @@ void handle_usb_serial_input(void) {
             writedisplaytext("((KISSTX))","",inputBuf,"","","");
             if (tx_own_beacon_from_this_device_or_fromKiss__to_frequencies % 2) {
               loraSend(txPower, lora_freq, lora_speed, 0, inputBuf);  //send the packet, data is in TXbuff from lora_TXStart to lora_TXEnd
+              stats_tx_freq_main++;
               do_delay = 600000 / lora_speed;
             }
             if (((tx_own_beacon_from_this_device_or_fromKiss__to_frequencies > 1 && lora_digipeating_mode > 1) || tx_own_beacon_from_this_device_or_fromKiss__to_frequencies == 5) && lora_freq_cross_digi > 1.0 && lora_freq_cross_digi != lora_freq) {
               loraSend(txPower_cross_digi, lora_freq_cross_digi, lora_speed_cross_digi, 0, inputBuf);  //send the packet, data is in TXbuff from lora_TXStart to lora_TXEnd
+              stats_tx_freq_secondary++;
               if (!do_delay || lora_speed_cross_digi < lora_speed)
                 do_delay = 600000 / lora_speed_cross_digi;
             }
@@ -6158,8 +6201,11 @@ void loop()
   double curr_kmph = 0.0;
   double curr_hdop = 99.9;
   int curr_sats = 0;
+  boolean digipeated_on_cross_freq;
 
   esp_task_wdt_reset();
+
+  digipeated_on_cross_freq = false;
 
   if (reboot_interval && millis() > reboot_interval) {
     // enforce display wakeup (because we will not reach the timer function for setting it on)
@@ -6263,10 +6309,36 @@ void loop()
             LastRXMessageInfo = 0;
           } else if (button_down_count < 6) {
             int n = button_down_count-3;
-            writedisplaytext("RX raw-" + String(n+1),"",RX_RAW_PACKET_LIST[n],"","","");
+            writedisplaytext("RX raw-" + String(n+1) + String(RX_RAW_PACKET_LIST[n].QRG ? ( " (" + String(RX_RAW_PACKET_LIST[n].QRG) + ")" ) : "") ,"",RX_RAW_PACKET_LIST[n].packet,"","","");
             time_to_refresh = millis() + showRXTime;
           } else if (button_down_count == 6) {
-            writedisplaytext("((BN))","BuildNr:" + buildnr,"by DL9SAU & DL3EL","","next press: tx bcn","or wait ...");
+            //String stats = "RX" + String(stats_rx_freq_main) + "+" + String(stats_rx_freq_secondary) + " TX" + String(stats_tx_freq_main) + "+" + String(stats_tx_freq_main) + "_b" + String(stats_tx_beacon) + "_d" + String(stats_digipeated_rf2rf) + " I" + String(stats_from_aprsis) + "+" + String(stats_to_aprsis);
+            String stats = "";
+            if (stats_rx_freq_main || stats_rx_freq_secondary) {
+              stats += "R:";
+              if (stats_rx_freq_main)
+                stats += String(stats_rx_freq_main);
+              stats += "/";
+              if (stats_rx_freq_secondary)
+                stats += String(stats_rx_freq_secondary);
+              stats += " ";
+            }
+            if (stats_tx_freq_main || stats_tx_freq_secondary) {
+              stats += "T:";
+              if (stats_tx_freq_main)
+                stats += String(stats_tx_freq_main);
+              stats += "/";
+              if (stats_tx_freq_secondary)
+                  stats += String(stats_tx_freq_secondary);
+              if ((stats_tx_freq_main && stats_tx_beacon != stats_tx_freq_main) || (stats_tx_freq_secondary && stats_tx_beacon != stats_tx_freq_secondary))
+                stats = stats + "b" + String(stats_tx_beacon);
+              if ((stats_tx_freq_main && stats_tx_beacon != stats_digipeated_rf2rf) || (stats_tx_freq_secondary && stats_digipeated_rf2rf != stats_tx_freq_secondary))
+                stats = stats + "d" + String(stats_digipeated_rf2rf);
+              stats += " ";
+            }
+            if (stats_from_aprsis || stats_to_aprsis)
+               stats = stats + "I:" + String(stats_from_aprsis) + "/" + String(stats_to_aprsis);
+            writedisplaytext("((BN))","BuildNr:" + buildnr,"by DL9SAU & DL3EL",stats,"next press: tx bcn","or wait ...");
           } else if (button_down_count == 7) {
 send_beacon:
             button_down_count = 0;
@@ -6378,8 +6450,6 @@ send_beacon:
     if (!do_suspend_gps && t_gps_fix_lost > 0L) {
       if (gps_task_enabled && millis() - t_gps_fix_lost > 10*60*1000L) {
         // new powersave operation cycle, because we lost gps fix 10min ago
-  Serial.print(String(millis()/1000));
-  Serial.println(" debug: powersave operation may start1");
         do_suspend_gps = true;
       } else if (t_gps_powersave_operation__next_action > 0L && millis() > t_gps_powersave_operation__next_action) {
         // powersave operation on/off toggles
@@ -6388,8 +6458,6 @@ send_beacon:
         } else {
           do_resume_gps = true;
         }
-  Serial.print(String(millis()/1000));
-  Serial.println(" debug: powersave operation may start2");
       }
     }
 
@@ -6839,6 +6907,7 @@ send_beacon:
         #endif
         time_last_frame_via_kiss_received = millis();
         const char *data = TNC2DataFrame->c_str();
+        stats_from_kiss++;
 
         // Frame comes from same call as ours and is a position report?
         if (!strncmp(data, Tcall.c_str(), Tcall.length()) && data[Tcall.length()] == '>') {
@@ -6923,8 +6992,10 @@ send_beacon:
             }
         }
 
-        if (usb_serial_data_type & 2)
+        if (usb_serial_data_type & 2) {
           Serial.println(data);
+          stats_to_serial++;
+        }
 
 #if defined(ENABLE_WIFI)
         if (!was_own_position_packet || tx_own_beacon_from_this_device_or_fromKiss__to_aprsis) {
@@ -6949,9 +7020,11 @@ send_beacon:
           int do_delay = 0;
           if (tx_own_beacon_from_this_device_or_fromKiss__to_frequencies % 2) {
             loraSend(txPower, lora_freq, lora_speed, 0, String(data));  //send the packet, data is in TXbuff from lora_TXStart to lora_TXEnd
+            stats_tx_freq_main++;
             do_delay = 600000 / lora_speed;
           } if (((tx_own_beacon_from_this_device_or_fromKiss__to_frequencies > 1 && lora_digipeating_mode > 1) || tx_own_beacon_from_this_device_or_fromKiss__to_frequencies == 5) && lora_freq_cross_digi > 1.0 && lora_freq_cross_digi != lora_freq) {
             loraSend(txPower_cross_digi, lora_freq_cross_digi, lora_speed_cross_digi, 0, String(data));  //send the packet, data is in TXbuff from lora_TXStart to lora_TXEnd
+            stats_tx_freq_secondary++;
             if (!do_delay || lora_speed_cross_digi < lora_speed)
               do_delay = 600000 / lora_speed_cross_digi;
           }
@@ -7093,6 +7166,12 @@ out:
           goto call_invalid_or_blacklisted;
         }
 
+        if (lora_freq_rx_curr == lora_freq) {
+          stats_rx_freq_main++;
+        } else {
+          stats_rx_freq_secondary++;
+        }
+
         char *digipeatedflag = strchr(received_frame, '*');
         if (digipeatedflag && digipeatedflag > header_end)
           digipeatedflag = 0;
@@ -7195,18 +7274,20 @@ out:
         if (!its_an_aprs_message_for_us) {
            // ^ don't disturb the important display of the message content
           enableOled(); // enable OLED
-          writedisplaytext("  ((RX))", "", loraReceivedFrameString, "", "", "");
+          writedisplaytext("  ((RX))", String("#") +  String(lora_freq_rx_curr == lora_freq ? (String(stats_rx_freq_main) + " M") : (String(stats_rx_freq_secondary) + " S")) , loraReceivedFrameString, "", "", "");
           time_to_refresh = millis() + showRXTime;
         }
 
         // List of received packets, for display
         for (int ii=2; ii > 0; ii--) {
-          RX_RAW_PACKET_LIST[ii] = RX_RAW_PACKET_LIST[ii-1];
+          RX_RAW_PACKET_LIST[ii].packet = RX_RAW_PACKET_LIST[ii-1].packet;
+          RX_RAW_PACKET_LIST[ii].QRG = RX_RAW_PACKET_LIST[ii-1].QRG;
         }
-        RX_RAW_PACKET_LIST[0] = String(loraReceivedFrameString);
+        RX_RAW_PACKET_LIST[0].packet = String(loraReceivedFrameString);
+        RX_RAW_PACKET_LIST[0].QRG = lora_freq_rx_curr == lora_freq ? 'M' : 'S';
 
         #ifdef ENABLE_WIFI
-          sendToWebList(loraReceivedFrameString_for_weblist, lastRssi, lastSNR);
+          sendToWebList(loraReceivedFrameString_for_weblist, lastRssi, lastSNR, lora_freq_rx_curr == lora_freq ? 'M' : 'S');
         #endif
     #endif
     #if defined(ENABLE_SYSLOG) && defined(ENABLE_WIFI) // unfortunately, on this plattform we only have IP if we have WIFI
@@ -7230,6 +7311,7 @@ out:
           String s_tmp = s ? String(s) : String(loraReceivedFrameString);
           s_tmp.trim();
           Serial.println(s_tmp);
+          stats_to_serial++;
         }
 
         // Are we configured as lora digi? Are we listening on the main frequency?
@@ -7246,10 +7328,13 @@ out:
           if (!do_not_repeat_to_secondary_freq && *lora_TXBUFF_for_digipeating &&
               lora_cross_digipeating_mode > 0 && lora_freq_cross_digi > 1.0 && lora_freq_cross_digi != lora_freq &&
               time_lora_TXBUFF_for_digipeating_was_filled > time_lora_TXBUFF_for_digipeating_was_filled_prev) {
+            stats_digipeated_rf2rf++;
+            digipeated_on_cross_freq = true;
             enableOled_now(); // enable OLED
-            writedisplaytext("(TX-Xdigi)", "", String(lora_TXBUFF_for_digipeating), "", "", "");
+            writedisplaytext("(TX-Xdigi)", String("#") + String(stats_digipeated_rf2rf), String(lora_TXBUFF_for_digipeating), "", "", "");
             // word 'NOGATE' is not part of the header
             loraSend(txPower_cross_digi, lora_freq_cross_digi, lora_speed_cross_digi, 0, String(lora_TXBUFF_for_digipeating));  //send the packet, data is in TXbuff from lora_TXStart to lora_TXEnd
+            stats_tx_freq_secondary++;
 #ifdef KISS_PROTOCOL
             s = add_element_to_path(lora_TXBUFF_for_digipeating, "GATE");
             sendToTNC(s ? String(s) : lora_TXBUFF_for_digipeating);
@@ -7262,8 +7347,10 @@ out:
 
         if (its_an_aprs_message_for_us && !answer_message.isEmpty()) {
           // Do not alter display, because it should not be interrupted in showing the received message
-          if (usb_serial_data_type & 2)
+          if (usb_serial_data_type & 2) {
             Serial.println(answer_message);
+            stats_to_serial++;
+          }
 #ifdef KISS_PROTOCOL
           sendToTNC(answer_message);
 #endif
@@ -7271,6 +7358,11 @@ out:
           send_to_aprsis(answer_message);
 #endif
           loraSend(lora_freq_rx_curr == lora_freq ? txPower : txPower_cross_digi, lora_freq_rx_curr, lora_freq_rx_curr == lora_freq ? lora_speed : lora_speed_cross_digi, 0, answer_message);
+           if (lora_freq_rx_curr == lora_freq) {
+             stats_tx_freq_main++;
+           } else {
+             stats_tx_freq_secondary++;
+           }
         }
 
     } else {
@@ -7503,7 +7595,7 @@ invalid_packet:
         fillDisplayLine1(3);
         fillDisplayLine2();
         fillDisplayLines3to5(1);
-        writedisplaytext("  ((TX))","",OledLine2,OledLine3,OledLine4,OledLine5);
+        writedisplaytext("  ((TX))",String("#") + String(stats_tx_beacon+1),OledLine2,OledLine3,OledLine4,OledLine5);
       }
       sendpacket(SP_POS_GPS | (reason_course_change ? SP_ENFORCE_COURSE : 0 ));
       reason_course_change = false;
@@ -7606,10 +7698,13 @@ behind_position_tx:
       // 3s grace time (plus up to 250ms random) for digipeating. 10s if we are a fill-in-digi (WIDE1);
       // -> If we are WIDE1 and another digipeater repeated it, we'll have deleted it from queue
       if (time_lora_TXBUFF_for_digipeating_was_filled + (lora_digipeating_mode == 2 ? 10 : 3 )*1000L > millis()) {
+        if (!digipeated_on_cross_freq)
+           stats_digipeated_rf2rf++;
         enableOled_now(); // enable OLED
-        writedisplaytext("((TXdigi))", "", String(lora_TXBUFF_for_digipeating), "", "", "");
+        writedisplaytext("((TXdigi))", String("#") + String(stats_digipeated_rf2rf), String(lora_TXBUFF_for_digipeating), "", "", "");
         // if SF12: we degipeat in fastest mode CR4/5. -> if lora_speed < 300 tx in lora_speed_300.
         loraSend(txPower, lora_freq, (lora_speed < 300) ? 300 : lora_speed, 0, String(lora_TXBUFF_for_digipeating));  //send the packet, data is in TXbuff from lora_TXStart to lora_TXEnd
+        stats_tx_freq_main++;
 #ifdef KISS_PROTOCOL
         sendToTNC(String(lora_TXBUFF_for_digipeating));
 #endif

@@ -64,7 +64,7 @@
                     </div>
                     <div>
                         <label for="wifi_password">WiFi Password</label>
-                        <input type="password" name="wifi_password" id="wifi_password" placeholder="Your WiFi Password" title="Your WiFi Password, 8 characters minimum">
+                        <input type="password" name="wifi_password" id="wifi_password" placeholder="Your WiFi Password" title="Your WiFi Password, 8 characters minimum; leave empty if you need to connect to an open (unencrypted) AP">
                     </div>
                     <div>
                         <label for="wifi_pwrSTA">TXPWR as STA</label>
@@ -80,7 +80,7 @@
                 <div class="grid-container halves">
                     <div>
                         <label for="ntp_server">NTP Server</label>
-                        <input type="text" name="ntp_server" id="ntp_server" placeholder="pool.ntp.org" title="NTP Server name or IP Address. I.e. pool.ntp.org. If your igate is in the HAMNET, use ntp.hc.r1.ampr.org.">
+                        <input type="text" name="ntp_server" id="ntp_server" placeholder="pool.ntp.org" title="NTP Server name or IP Address. I.e. pool.ntp.org. If your igate is in the HAMNET, use ntp.hamnet.cloud.">
                     </div>
                     <div>
                         <label for="syslog_server">Syslog Server</label>
@@ -419,7 +419,7 @@ III: Values above are referring to latitude; distance between two latitudes is a
                     <div>
                         <label for="lora_freq_x">Secondary Frequency [MHz]</label>
                         (for cross-repeating or listening transmissions from igates)</label>
-                        <input name="lora_freq_x" id="lora_freq_x" type="number" min="430.1000" max="928.0000" step="0.0001" title="LoRa center frequency - must be different from main frequency and between 430.0000 and 928.0000 or 0 if not needed. I.e. 433.900">
+                        <input name="lora_freq_x" id="lora_freq_x" type="number" min="430.1000" max="928.0000" step="0.0001" title="LoRa center frequency - must be different from main frequency and between 430.1000 and 928.0000 or 0 if not needed. I.e. 433.900">
                     </div>
                     <div>
                         <label for="txPower_x">TX power on secondary frequency [dBm]</label>
@@ -486,12 +486,14 @@ III: Values above are referring to latitude; distance between two latitudes is a
                     </div>
                     <div>
                       <label for="tx_qrg_bc">TX our beacon from this device or from-kiss to frequencies</label>
-                      (Only honored, if we are configured as WIDE1 or WIDE2 digi)
+                      (Only honored, if we are configured as WIDE1 or WIDE2 digi, or if set to 'TX on both frequencies as USER'<br/>
+                       Use case for 'TX on both frequencies as USER':<br/>
+                       Used in SP. And might be used i.e. in DL, for xmitting on primary qrg in the long distance lowest speed mode (where only gateways forward the packets to the internet, and where digipeating is not recommended), and also on secondary qrg in fast polish mode (where, like in classic 2m aprs, other automatic stations may digipeat your transmisson on rf)</br>
                       <select class="u-full-width" id="tx_qrg_bc" name="tx_qrg_bc">
                         <option value="1">TX on main frequency</option>
                         <option value="2">TX on secondary frequency</option>
                         <option value="3">TX on both frequencies</option>
-                        <option value="5">(TX on both frequencies as USER - not recommended, needed in SP)</option>
+                        <option value="5">TX on both frequencies as USER</option>
                         <option value="0">Don't send our beacon on RF (but only to kiss and to APRS-IS)</option>
                       </select>
                     </div>
@@ -507,7 +509,7 @@ III: Values above are referring to latitude; distance between two latitudes is a
                   </div>
                   <div>
                     <label for="aprsis_srv_h">Server Name</label>
-                    <input type="text" name="aprsis_srv_h" id="aprsis_srv_h" placeholder="euro.aprs2.net" title="Server name or IP Address. I.e. euro.aprs2.net. If your igate is in the HAMNET, use aprs.hc.r1.ampr.org">
+                    <input type="text" name="aprsis_srv_h" id="aprsis_srv_h" placeholder="euro.aprs2.net" title="Server name or IP Address. I.e. euro.aprs2.net. If your igate is in the HAMNET, use aprs.hamnet.cloud">
                   </div>
                   <div>
                     <label for="aprsis_srv_p">TCP Port</label>
@@ -757,6 +759,76 @@ Hard readable lengths / too long for our display:
     </section>
     <section>
         <div class="grid-container full">
+            <h2 class="u-full-width">Statistics</h2>
+        </div>
+        <div class="grid-container quarters">
+            <div>
+              <label for="stats_rx_freq_main">RX main freq</label>
+              <input type="text" name="stats_rx_freq_main" id="stats_rx_freq_main" readonly title="stats_rx_freq_main">
+            </div>
+            <div>
+              <label for="stats_rx_freq_secondary">RX 2nd freq</label>
+              <input type="text" name="stats_rx_freq_secondary" id="stats_rx_freq_secondary" readonly title="stats_rx_freq_secondary">
+            </div>
+            <div>
+              <label for="stats_tx_freq_main">TX main freq</label>
+              <input type="text" name="stats_tx_freq_main" id="stats_tx_freq_main" readonly title="stats_tx_freq_main">
+            </div>
+            <div>
+              <label for="stats_tx_freq_secondary">TX 2nd freq</label>
+              <input type="text" name="stats_tx_freq_secondary" id="stats_tx_freq_secondary" readonly title="stats_tx_freq_secondary">
+            </div>
+        </div>
+        <div class="grid-container quarters">
+            <div>
+              <label for="stats_digipeated_rf2rf">Digipeated on RF</label>
+              <input type="text" name="stats_digipeated_rf2rf" id="stats_digipeated_rf2rf" readonly title="stats_digipeated_rf2rf">
+            </div>
+            <div>
+              <label for="stats_tx_beacon">TX beacons</label>
+              <input type="text" name="stats_tx_beacon" id="stats_tx_beacon" readonly title="stats_tx_beacon">
+            </div>
+            <div>
+              <label for="stats_tx_status">TX status</label>
+              <input type="text" name="stats_tx_status" id="stats_tx_status" readonly title="stats_tx_status">
+            </div>
+            <div>
+              <label for="stats_tx_telemetry">TX telemetry</label>
+              <input type="text" name="stats_tx_telemetry" id="stats_tx_telemetry" readonly title="stats_tx_telemetry">
+            </div>
+        </div>
+        <div class="grid-container quarters">
+            <div>
+              <label for="stats_from_kiss">From KISS</label>
+              <input type="text" name="stats_from_kiss" id="stats_from_kiss" readonly title="stats_from_kiss">
+            </div>
+            <div>
+              <label for="stats_to_kiss">To KISS</label>
+              <input type="text" name="stats_to_kiss" id="stats_to_kiss" readonly title="stats_to_kiss">
+            </div>
+            <div>
+              <label for="stats_from_serial">From serial</label>
+              <input type="text" name="stats_from_serial" id="stats_from_serial" readonly title="stats_from_serial">
+            </div>
+            <div>
+              <label for="stats_to_serial">To serial</label>
+              <input type="text" name="stats_to_serial" id="stats_to_serial" readonly title="stats_to_serial">
+            </div>
+        </div>
+        <div class="grid-container quarters">
+            <div>
+            <div>
+              <label for="stats_from_aprsis">From APRSIS</label>
+              <input type="text" name="stats_from_aprsis" id="stats_from_aprsis" readonly title="stats_from_aprsis">
+            </div>
+            <div>
+              <label for="stats_to_aprsis">To APRSIS</label>
+              <input type="text" name="stats_to_aprsis" id="stats_to_aprsis" readonly title="stats_to_aprsis">
+            </div>
+        </div>
+    </section>
+    <section>
+        <div class="grid-container full">
             <h2 class="u-full-width">Received</h2>
         </div>
         <article style="overflow-x:auto;">
@@ -767,6 +839,7 @@ Hard readable lengths / too long for our display:
                     <th>Frame</th>
                     <th>RSSI</th>
                     <th>SNR</th>
+                    <th>Freq</th>
                 </tr>
                 </thead>
                 <tbody id="receivedFrames">

@@ -152,6 +152,23 @@ int aprsis_connect_tries = 0;
 extern char gps_time_s[];
 String aprs_callsign;
 
+// statistics
+
+extern uint32_t stats_rx_freq_main;
+extern uint32_t stats_rx_freq_secondary;
+extern uint32_t stats_tx_freq_main;
+extern uint32_t stats_tx_freq_secondary;
+extern uint32_t stats_tx_beacon;
+extern uint32_t stats_tx_status;
+extern uint32_t stats_tx_telemetry;
+extern uint32_t stats_digipeated_rf2rf;
+extern uint32_t stats_from_aprsis;
+extern uint32_t stats_to_aprsis;
+extern uint32_t stats_from_serial;
+extern uint32_t stats_to_serial;
+extern uint32_t stats_from_kiss;
+extern uint32_t stats_to_kiss;
+
 // keep config stored in this global variable
 extern String preferences_as_jsonData;
 extern String wifi_config_as_jsonData;
@@ -311,7 +328,7 @@ void handle_SaveWifiCfg() {
   #endif
   do_serial_println("WebServer: WebServer: handle_WifiCfg()");
 
-  if (!server.hasArg(PREF_WIFI_SSID) || !server.hasArg(PREF_WIFI_PASSWORD) || !server.hasArg(PREF_AP_PASSWORD)){
+  if (!server.hasArg(PREF_WIFI_SSID) || !server.hasArg(PREF_AP_PASSWORD)){
     server.send(500, "text/plain", "Invalid request, make sure all fields are set");
     return;
   }
@@ -326,9 +343,10 @@ void handle_SaveWifiCfg() {
     preferences.putString(PREF_WIFI_PASSWORD, "");
     do_serial_println("WiFi: Deconfigured your remote AP (SSID and password cleared)");
   } else if (s != "*") {
-    if (s.length() < 8 || s.length() > 63) {
+    if (s != "" /* empty password is "open unencrypted wifi" */ &&
+        (s.length() < 8 || s.length() > 63) ) {
       preferences.putString(PREF_WIFI_SSID, server.arg(PREF_WIFI_SSID));
-      server.send(403, "text/plain", "WiFi Password must be minimum 8 characters, and max 63.");
+      server.send(403, "text/plain", "WiFi Password must be minimum 8 characters, and max 63: leave empty if you need to connect to an open (unencrypted) AP");
       return;
     } else {
       // Update WiFi password
@@ -556,6 +574,20 @@ void refill_preferences_as_jsonData()
   s_tmp = String(OledLine4); s_tmp.replace("\xF7", "°");
   s = s + "\n  " +  jsonLineFromString("OledLine4", s_tmp.c_str());
   s = s + "\n  " +  jsonLineFromString("OledLine5", OledLine5.c_str());
+  s = s + "\n  " +  jsonLineFromInt("stats_rx_freq_main", stats_rx_freq_main);
+  s = s + "\n  " +  jsonLineFromInt("stats_rx_freq_secondary", stats_rx_freq_secondary);
+  s = s + "\n  " +  jsonLineFromInt("stats_tx_freq_main", stats_tx_freq_main);
+  s = s + "\n  " +  jsonLineFromInt("stats_tx_freq_secondary", stats_tx_freq_secondary);
+  s = s + "\n  " +  jsonLineFromInt("stats_tx_beacon", stats_tx_beacon);
+  s = s + "\n  " +  jsonLineFromInt("stats_tx_status", stats_tx_status);
+  s = s + "\n  " +  jsonLineFromInt("stats_tx_telemetry", stats_tx_telemetry);
+  s = s + "\n  " +  jsonLineFromInt("stats_digipeated_rf2rf", stats_digipeated_rf2rf);
+  s = s + "\n  " +  jsonLineFromInt("stats_from_aprsis", stats_from_aprsis);
+  s = s + "\n  " +  jsonLineFromInt("stats_to_aprsis", stats_to_aprsis);
+  s = s + "\n  " +  jsonLineFromInt("stats_from_serial", stats_from_serial);
+  s = s + "\n  " +  jsonLineFromInt("stats_to_serial", stats_to_serial);
+  s = s + "\n  " +  jsonLineFromInt("stats_from_kiss", stats_from_kiss);
+  s = s + "\n  " +  jsonLineFromInt("stats_to_kiss", stats_to_kiss);
   s = s + "\n  " +  jsonLineFromString("CompileFlags", compile_flags, true);
 
   s += "\n}\n";
@@ -657,6 +689,7 @@ void handle_ReceivedList() {
     packet_data["packet"] = htmlFreetextEscape(element->packet->c_str());
     packet_data["rssi"] = element->RSSI;
     packet_data["snr"] = element->SNR;
+    packet_data["qrg"] = (element->QRG == 'M') ? "M" : "S";
   }
 
   server.send(200,"application/json", doc.as<String>());
@@ -677,7 +710,8 @@ void handle_ReceivedList() {
     jsonData += jsonLineFromString("time", buf);
     jsonData += jsonLineFromString("packet", htmlFreetextEscape(element->packet->c_str()).c_str());
     jsonData += jsonLineFromInt("rssi", element->RSSI);
-    jsonData += jsonLineFromInt("snr", element->SNR, true);
+    jsonData += jsonLineFromInt("snr", element->SNR);
+    jsonData += jsonLineFromString("qrg", (element->QRG == 'M') ? "M" : "S", true);
     jsonData += "}";
   }
   jsonData += "]}";
@@ -1301,7 +1335,7 @@ void handle_saveDeviceCfg(){
 boolean restart_STA(String use_ssid, String use_password) {
   int retryWifi = 0;
 
-  if (use_password.length() < 8 || !use_ssid.length()) return false;
+  if (!use_ssid.length() || (use_password.length() && (use_password.length() < 8 || use_password.length() > 63))) return false;
 
   WiFi.disconnect();
   WiFi.softAPdisconnect();
@@ -1354,7 +1388,7 @@ void restart_AP_or_STA(void) {
 
     start_soft_ap = false;
     for (pos = 0; pos < apcnt; pos++) {
-      do_serial_println("Wifi: Trying AP " + String(pos) + "/" + String(apcnt) + ": SSID " + APs[pos].ssid);
+      do_serial_println("Wifi: Trying AP " + String(pos)+1 + "/" + String(apcnt) + ": SSID " + APs[pos].ssid);
       wifi_connection_status = WIFI_SEARCHING_FOR_AP;
       successfully_associated = restart_STA(String(APs[pos].ssid), String(APs[pos].pw));
       if (successfully_associated) {
@@ -1477,7 +1511,7 @@ void restart_AP_or_STA(void) {
   ntp_server.trim();
   if (ntp_server.isEmpty()) {
     if (oled_wifi_IP_curr.startsWith("44."))
-      ntp_server = "ntp.hc.r1.ampr.org";
+      ntp_server = "ntp.hamnet.cloud";
     else
       ntp_server = "pool.ntp.org";
     preferences.putString(PREF_NTP_SERVER, ntp_server);
@@ -1620,10 +1654,12 @@ void do_send_status_message_about_connect_to_aprsis(void) {
   if (lora_tx_enabled && tx_own_beacon_from_this_device_or_fromKiss__to_frequencies) {
     if (tx_own_beacon_from_this_device_or_fromKiss__to_frequencies % 2) {
       loraSend(txPower, lora_freq, lora_speed, 0, outString);  //send the packet, data is in TXbuff from lora_TXStart to lora_TXEnd
+      stats_tx_freq_main++;
       do_delay = 600000 / lora_speed;
     }
     if (((tx_own_beacon_from_this_device_or_fromKiss__to_frequencies > 1 && lora_digipeating_mode > 1) || tx_own_beacon_from_this_device_or_fromKiss__to_frequencies == 5) && lora_freq_cross_digi > 1.0 && lora_freq_cross_digi != lora_freq) {
       loraSend(txPower_cross_digi, lora_freq_cross_digi, lora_speed_cross_digi, 0, outString);  //send the packet, data is in TXbuff from lora_TXStart to lora_TXEnd
+      stats_tx_freq_secondary++;
       if (!do_delay || lora_speed_cross_digi < lora_speed)
         do_delay = 600000 / lora_speed_cross_digi;
     }
@@ -1636,6 +1672,7 @@ void do_send_status_message_about_connect_to_aprsis(void) {
     sendToTNC(outString);
   #endif
 
+  stats_tx_status++;
 }
 
 
@@ -2083,8 +2120,12 @@ void read_from_aprsis(void) {
   aprsis_status = "OK, fromAPRSIS: " + s + " => " + third_party_packet; aprsis_status.trim();
 
   esp_task_wdt_reset();
-  if (usb_serial_data_type & 2)
+
+  stats_from_aprsis++;
+  if (usb_serial_data_type & 2) {
     Serial.println(third_party_packet);
+    stats_to_serial++;
+  }
 
 #ifdef KISS_PROTOCOL
   if (!src_call_not_for_rf) {
@@ -2144,10 +2185,12 @@ void read_from_aprsis(void) {
   int do_delay = 0;
   if (aprsis_data_allow_inet_to_rf % 2) {
     loraSend(txPower, lora_freq, lora_speed, 0, third_party_packet);
+    stats_tx_freq_main++;
     do_delay = 600000 / lora_speed;
   }
   if (aprsis_data_allow_inet_to_rf > 1 && lora_freq_cross_digi > 1.0 && lora_freq_cross_digi != lora_freq) {
     loraSend(txPower_cross_digi, lora_freq_cross_digi, lora_speed_cross_digi, 0, third_party_packet);
+    stats_tx_freq_secondary++;
     if (!do_delay || lora_speed_cross_digi < lora_speed)
       do_delay = 600000 / lora_speed_cross_digi;
   }
@@ -2486,6 +2529,7 @@ void send_queue_to_aprsis()
       receivedPacketToQueue->packet->concat(*receivedPacketData->packet);
       receivedPacketToQueue->RSSI = receivedPacketData->RSSI;
       receivedPacketToQueue->SNR = receivedPacketData->SNR;
+      receivedPacketToQueue->QRG = receivedPacketData->QRG;
       receivedPacketToQueue->rxTime = receivedPacketData->rxTime;
       receivedPackets.push_back(receivedPacketToQueue);
       if (receivedPackets.size() > MAX_RECEIVED_LIST_SIZE){
@@ -2531,7 +2575,7 @@ void send_queue_to_aprsis()
                      (ret == -1 /* sometimes after boot it can't connect. DNS- or IP-stack Problem? */ && lora_digipeating_mode > 1) /* we are a digi */ ) {
 
                   // sometimes after boot, connection does not work:
-                  //   APRS-IS: connecting to 'aprs.hc.r1.ampr.org', tries 1
+                  //   APRS-IS: connecting to 'aprs.hamnet.cloud', tries 1
                   //   [ 10068][E][WiFiClient.cpp:268] connect(): socket error on fd 50, errno: 104, "Connection reset by peer"
                   //   APRS-IS: on_Err: 'Error: connect failed' [0.0.255.0], tries 1
                   // connection retry intervall is every 10s. -> In 5min, tries == 30.

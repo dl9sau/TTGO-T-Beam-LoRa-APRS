@@ -59,6 +59,9 @@ window.onload = function () {
             let td_s = document.createElement('td');
             td_s.innerHTML = frameInfo['snr'];
             tr.appendChild(td_s);
+            let td_q = document.createElement('td');
+            td_q.innerHTML = frameInfo['qrg'];
+            tr.appendChild(td_q);
             tbody.appendChild(tr);
         }
       }

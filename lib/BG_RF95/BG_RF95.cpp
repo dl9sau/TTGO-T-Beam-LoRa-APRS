@@ -3,6 +3,7 @@
 // Copyright (C) 2011 Mike McCauley
 // $Id: BG_RF95.cpp,v 1.11 2016/04/04 01:40:12 mikem Exp $
 
+#ifdef HAS_SX127X
 #include <BG_RF95.h>
 
 byte _lastSNR = 0;
@@ -460,3 +461,4 @@ bool BG_RF95::SignalDetected(void)
 {
   return ((spiRead(BG_RF95_REG_18_MODEM_STAT) & 0x01) == 0x01);
 }
+#endif
