@@ -4268,6 +4268,12 @@ void setup_compile_flags_info()
   strcpy(compile_flags, "IcannotExist / UNKNOW");
 #endif
 
+#ifdef HAS_SX126X
+  strcat(compile_flags, ",HAS_SX126X");
+#else // HAS_SX127X
+  strcat(compile_flags, ",HAS_SX127X");
+#endif
+
 #ifdef  ENABLE_BLUETOOTH
   strcat(compile_flags, ",ENABLE_BLUETOOTH");
 #endif
